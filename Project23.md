@@ -500,6 +500,162 @@ Lets go through the below process so that you can see an example of a configMap 
 
 4. Copy the output and save the file on your local pc because we will need it to create a configmap.
 
+##### Persisting configuration data with configMaps
 
+According to the official documentation of configMaps, A ConfigMap is an API object used to store non-confidential data in key-value pairs. Pods can consume ConfigMaps as environment variables, command-line arguments, or as configuration files in a volume.
 
+In our own use case here, We will use configMap to create a file in a volume.
 
+The manifest file we look like:
+
+`cat <<EOF | tee ./nginx-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: website-index-file
+data:
+  # file to be mounted inside a volume
+  index-file: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <title>Welcome to nginx!</title>
+    <style>
+    html { color-scheme: light dark; }
+    body { width: 35em; margin: 0 auto;
+    font-family: Tahoma, Verdana, Arial, sans-serif; }
+    </style>
+    </head>
+    <body>
+    <h1>Welcome to nginx!</h1>
+    <p>If you see this page, the nginx web server is successfully installed and
+    working. Further configuration is required.</p>
+
+    <p>For online documentation and support please refer to
+    <a href="http://nginx.org/">nginx.org</a>.<br/>
+    Commercial support is available at
+    <a href="http://nginx.com/">nginx.com</a>.</p>
+
+    <p><em>Thank you for using nginx.</em></p>
+    </body>
+    </html>
+EOF`
+
+[ConfigMap](./Screenshots/configmap-output.png)
+
+. Apply the new manifest file:
+
+`kubectl apply -f nginx-configmap.yaml`
+
+[Nginx ConfigMap](./Screenshots/nginx-configmap-output.png)
+
+. Update the deployment file to use the configmap in the volumeMounts section:
+
+`cat <<EOF | tee ./nginx-pod-with-cm.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    tier: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      tier: frontend
+  template:
+    metadata:
+      labels:
+        tier: frontend
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+        volumeMounts:
+          - name: config
+            mountPath: /usr/share/nginx/html
+            readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: website-index-file
+          items:
+          - key: index-file
+            path: index.html
+EOF`
+
+[ConfigMap VolMounts](./Screenshots/configmap-volMount-output.png)
+
+- Apply the new manifest update file:
+
+`kubectl apply -f nginx-configmap.yaml`
+
+[Nginx ConfigMap](./Screenshots/nginx-configmap-output.png)
+
+`kubectl apply -f nginx-pod-with-cm.yaml`
+
+[Nginx Pod With Cm](./Screenshots/nginx-pod-with-cm.png)
+
+- Now the index.html file is no longer ephemeral because it is using a configMap that has been mounted onto the filesystem. This is now evident when you exec into the pod and list the /usr/share/nginx/html directory:
+
+`kubectl exec -it nginx-deployment-5dbc79879c-d4j95 -- bash`
+
+`ls -ltr  /usr/share/nginx/html`
+
+[Nginx Index Html](./Screenshots/index-html.png)
+
+You can now see that the index.html is now a soft link to ../data
+
+Accessing the site will not change anything at this time because the same html file is being loaded through configmap.
+
+But if you make any change to the content of the html file through the configmap, and restart the pod, all your changes will persist.
+
+Lets try that;
+
+List the available configmaps. You can either use kubectl get configmap or kubectl get cm
+
+`kubectl get cm`
+
+[Get Configmap](./Screenshots/get-cm.png)
+
+We are interested in the website-index-file configmap
+
+Update the configmap. You can either update the manifest file, or the kubernetes object directly. Lets use the latter approach this time:
+
+`kubectl edit cm website-index-file`
+
+[Edit Website Index file](./Screenshots/edit-website-index.png)
+
+[Edit Website Index file](./Screenshots/edit-website-output.png)
+
+Restart the pod:
+
+`kubectl get pod`
+
+`kubectl port-forward pod/nginx-deployment-5dbc79879c-d4j95 8080:80`
+
+[Restart Pod](./Screenshots/restart-pod.png)
+
+launch in the browser:
+
+[http://localhost:8080/]
+
+[Darey.io Website](./Screenshots/dareyo.io-output.png)
+
+- If you wish to restart the deployment for any reason, simply use the command:
+
+`kubectl rollout restart deploy nginx-deployment`
+
+[Rollout Restart](./Screenshots/rollout-restart.png)
+
+This will terminate the running pod and spin up a new one.
+
+Congratulations!!!
+
+In the next project
+
+You will also be introduced to packaging Kubernetes manifests using Helm
+Deploying applications into Kubernetes using Helm Charts
+And many more awesome technologies.
