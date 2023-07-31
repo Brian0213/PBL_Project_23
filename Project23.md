@@ -659,3 +659,5 @@ In the next project
 You will also be introduced to packaging Kubernetes manifests using Helm
 Deploying applications into Kubernetes using Helm Charts
 And many more awesome technologies.
+
+`eksctl delete cluster devtest`
